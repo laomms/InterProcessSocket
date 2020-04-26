@@ -323,7 +323,6 @@ typedef struct AgrListStruct
                     Marshal.Copy(pnt, bytes, 0, size)
                     subClientSocket.Send(bytes)
                 ElseIf AgrList.FuncFlag = 2 Then
-                    Debug.Print(AgrList.f2.sizeDst)
                     AgrList.FuncFlag = 3
                     AgrList.f3.Src = "abc..."
                     Dim size As Integer = Marshal.SizeOf(AgrList)
