@@ -1,6 +1,5 @@
 # dll注入后通过socket与主程序通讯的例子  
-上次有写了个通过内存共享实现进程间通信的例子。重新用sokcet写了一遍。   
-Tcp/Ip socket用到这里好像有点大材小用，毕竟只有几次的通讯过程。但是也是个方法。   
+上次有写了个通过内存共享实现进程间通信的例子。重新用sokcet写了一遍。 如果用内存共享的方式，那3个函数得注入3次，但是用socket，只要注入一次，目标进程退出前随便怎么操作。Tcp/Ip socket用到这里好像有点大材小用，毕竟只有几次的通讯过程。但是也是个方法。   
 主程序是VB.NET，当服务端，要注入的dll是c++，当客户端。   
 dll源码，SocketClient.cpp：
 ```c
@@ -243,8 +242,124 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  fdwReason, LPVOID lpReserved)
     return TRUE;
 }
 
+```
+.net服务端网上有很多例子，我这里只贴收到信息后的处理：
 
+```vb.net
+typedef struct func1
+{
+    char structHWID[64];
+    unsigned char sizeHWID[4];
+};
+typedef struct func2
+{
+    BYTE pbData[32];
+    int dwSize;
+    BYTE pbDst[256];
+    unsigned int sizeDst;
+};
+typedef struct func3
+{
+    char Src[1000];
+    char pbData[1024];
+    unsigned DataSize;
+};
+typedef struct AgrListStruct
+{
+    int FuncFlag;
+    func1 f1;
+    func2 f2;
+    func3 f3;
+};
 
+ Private Sub ListenClient()
+        While ServerStart
+            Try
+                If Not MyServerClient Is Nothing Then
+                    clientSocket = New Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+                    SetKeepAliveEx(clientSocket, 30000, 1)
+                    clientSocket = MyServerClient.Accept()
+                    If Not clientSocket Is Nothing Then'连上后先发定义好的结构体给dll
+                        Dim AgrList As New AgrListStruct()
+                        AgrList.FuncFlag = 1
+                        Dim size As Integer = Marshal.SizeOf(AgrList)
+                        Dim pnt As IntPtr = Marshal.AllocHGlobal(size)
+                        Marshal.StructureToPtr(AgrList, pnt, False)
+                        Dim bytes(size - 1) As Byte
+                        Marshal.Copy(pnt, bytes, 0, size)
+                        clientSocket.Send(bytes)
+                        Dim thread As New Thread(AddressOf recv)
+                        thread.IsBackground = True
+                        thread.Start(clientSocket)
+                    End If
+                End If
+            Catch ex As Exception
+                RaiseEvent Exception(ex)
+                Debug.Print(ex.ToString)
+            End Try
+        End While
+    End Sub
+    
+     Private Shared Sub recv(ByVal socketclientpara As Object)
+        Dim subClientSocket As Socket = socketclientpara
+        Do
+            Dim arrServerRecMsg((1024 * 1024) - 1) As Byte
+            Try
+	       '收到消息后把消息转成结构体
+                Dim length As Integer = subClientSocket.Receive(arrServerRecMsg)
+                Dim strSRecMsg As String = Encoding.UTF8.GetString(arrServerRecMsg, 0, length)
+                Dim AgrList As New AgrListStruct()
+                Dim pnt As IntPtr = Marshal.AllocHGlobal(Marshal.SizeOf(AgrList))
+                Marshal.Copy(arrServerRecMsg, 0, pnt, Marshal.SizeOf(AgrList))
+                AgrList = Marshal.PtrToStructure(pnt, GetType(AgrListStruct))
+                Marshal.FreeHGlobal(pnt)
+                If AgrList.FuncFlag = 1 Then
+                    AgrList.FuncFlag = 2
+                    AgrList.f2.pbData = New Byte() {&H27, &HC7, ...}
+                    Dim size As Integer = Marshal.SizeOf(AgrList)
+                    pnt = Marshal.AllocHGlobal(size)
+                    Marshal.StructureToPtr(AgrList, pnt, False)
+                    Dim bytes(size - 1) As Byte
+                    Marshal.Copy(pnt, bytes, 0, size)
+                    subClientSocket.Send(bytes)
+                ElseIf AgrList.FuncFlag = 2 Then
+                    Debug.Print(AgrList.f2.sizeDst)
+                    AgrList.FuncFlag = 3
+                    AgrList.f3.Src = "abc..."
+                    Dim size As Integer = Marshal.SizeOf(AgrList)
+                    pnt = Marshal.AllocHGlobal(size)
+                    Marshal.StructureToPtr(AgrList, pnt, False)
+                    Dim bytes(size - 1) As Byte
+                    Marshal.Copy(pnt, bytes, 0, size)
+                    subClientSocket.Send(bytes)
+                ElseIf AgrList.FuncFlag = 3 Then
+                    Debug.Print(AgrList.f3.Src)
+                End If
+            Catch e1 As Exception
+                subClientSocket.Close()
+                Exit Do
+            End Try
+        Loop
+    End Sub
 ```
 
+注入的后先挂起，知道所有操作完毕再退出进程。
+```vb.net
+    Private Function dllinjecton(DllPath As String, FilePath As String) As Boolean
+        Dim si As New STARTUPINFO()
+        Dim pi As New PROCESS_INFORMATION()
+        Dim hRet = CreateProcess(FilePath, Nothing, 0, IntPtr.Zero, False, CREATE_SUSPENDED, IntPtr.Zero, Nothing, si, pi) 'DEBUG_ONLY_THIS_PROCESS Or DEBUG_PROCESS Or CREATE_NO_WINDOW
+        If hRet = False Then Return False
+        Dim hHandle = OpenProcess(PROCESS_ALL_ACCESS Or PROCESS_VM_OPERATION Or PROCESS_VM_READ Or PROCESS_VM_WRITE, False, pi.dwProcessId)
+        Dim hLoadLibrary = GetProcAddress(GetModuleHandle("Kernel32.dll"), "LoadLibraryA")
+        Dim pLibRemote = VirtualAllocEx(hHandle, IntPtr.Zero, DllPath.Length + 1, MEM_COMMIT, PAGE_READWRITE)
+        If pLibRemote.Equals(IntPtr.Zero) Then Return False
+        Dim bytesWritten As New IntPtr
+        If WriteProcessMemory(hHandle, pLibRemote, ASCIIEncoding.ASCII.GetBytes(DllPath), DllPath.Length + 1, bytesWritten) = False Then Return False
+        Dim dwThreadId As New IntPtr
+        Dim hRemoteThread = CreateRemoteThread(hHandle, IntPtr.Zero, 0, hLoadLibrary, pLibRemote, 0, dwThreadId)
+        WaitForSingleObject(hRemoteThread, 0)
+        Return True
+    End Function
+```
 
