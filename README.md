@@ -244,7 +244,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  fdwReason, LPVOID lpReserved)
 ```
 ![image](https://github.com/laomms/InterProcessSocket/blob/master/11.png)   
 
-.net服务端网上有很多例子，我这里只贴收到信息后的处理：
+.net服务端网上有很多例子，我这里只贴握手后处理和收到信息后的处理：
 
 ```vb.net
 typedef struct func1
