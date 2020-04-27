@@ -364,6 +364,10 @@ typedef struct AgrListStruct
         Sleep(1000)
         Return pi.hProcess
     End Function
+    
+    Private Sub finishedinjecton(hProcess As IntPtr)
+        TerminateProcess(hProcess, 0)
+    End Sub
 ```
 ![image](https://github.com/laomms/InterProcessSocket/blob/master/22.png)   
 
