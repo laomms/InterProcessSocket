@@ -343,7 +343,7 @@ typedef struct AgrListStruct
     End Sub
 ```
 
-注入的后先挂起，直到所有操作完毕再退出进程。
+注入后先挂起，直到所有操作完毕再结束进程。
 ```vb.net
     Private Function dllinjecton(DllPath As String, FilePath As String) As IntPtr
         Dim si As New STARTUPINFO()
