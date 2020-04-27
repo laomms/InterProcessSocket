@@ -345,22 +345,25 @@ typedef struct AgrListStruct
 
 注入的后先挂起，直到所有操作完毕再退出进程。
 ```vb.net
-    Private Function dllinjecton(DllPath As String, FilePath As String) As Boolean
+    Private Function dllinjecton(DllPath As String, FilePath As String) As IntPtr
         Dim si As New STARTUPINFO()
         Dim pi As New PROCESS_INFORMATION()
         Dim hRet = CreateProcess(FilePath, Nothing, 0, IntPtr.Zero, False, CREATE_SUSPENDED, IntPtr.Zero, Nothing, si, pi) 'DEBUG_ONLY_THIS_PROCESS Or DEBUG_PROCESS Or CREATE_NO_WINDOW
-        If hRet = False Then Return False
+        If hRet = False Then Return IntPtr.Zero
         Dim hHandle = OpenProcess(PROCESS_ALL_ACCESS Or PROCESS_VM_OPERATION Or PROCESS_VM_READ Or PROCESS_VM_WRITE, False, pi.dwProcessId)
         Dim hLoadLibrary = GetProcAddress(GetModuleHandle("Kernel32.dll"), "LoadLibraryA")
         Dim pLibRemote = VirtualAllocEx(hHandle, IntPtr.Zero, DllPath.Length + 1, MEM_COMMIT, PAGE_READWRITE)
-        If pLibRemote.Equals(IntPtr.Zero) Then Return False
+        If pLibRemote.Equals(IntPtr.Zero) Then Return IntPtr.Zero
         Dim bytesWritten As New IntPtr
         If WriteProcessMemory(hHandle, pLibRemote, ASCIIEncoding.ASCII.GetBytes(DllPath), DllPath.Length + 1, bytesWritten) = False Then Return False
         Dim dwThreadId As New IntPtr
         Dim hRemoteThread = CreateRemoteThread(hHandle, IntPtr.Zero, 0, hLoadLibrary, pLibRemote, 0, dwThreadId)
         WaitForSingleObject(hRemoteThread, 0)
-        Return True
+        Return pi.hProcess
     End Function
+    Private Sub finishedinjecton(hProcess As IntPtr)
+        TerminateProcess(hProcess, 0)
+    End Sub
 ```
 ![image](https://github.com/laomms/InterProcessSocket/blob/master/22.png)   
 
