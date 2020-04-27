@@ -346,6 +346,8 @@ typedef struct AgrListStruct
 注入后先挂起，直到所有操作完毕再结束进程。
 ```vb.net
     Private Function dllinjecton(DllPath As String, FilePath As String) As IntPtr
+        Dim CServer = New TCPIPServer("8888", 100, 51200, 50000)
+        CServer.StartServer()
         Dim si As New STARTUPINFO()
         Dim pi As New PROCESS_INFORMATION()
         Dim hRet = CreateProcess(FilePath, Nothing, 0, IntPtr.Zero, False, CREATE_SUSPENDED, IntPtr.Zero, Nothing, si, pi) 'DEBUG_ONLY_THIS_PROCESS Or DEBUG_PROCESS Or CREATE_NO_WINDOW
@@ -359,11 +361,9 @@ typedef struct AgrListStruct
         Dim dwThreadId As New IntPtr
         Dim hRemoteThread = CreateRemoteThread(hHandle, IntPtr.Zero, 0, hLoadLibrary, pLibRemote, 0, dwThreadId)
         WaitForSingleObject(hRemoteThread, 0)
+        Sleep(1000)
         Return pi.hProcess
     End Function
-    Private Sub finishedinjecton(hProcess As IntPtr)
-        TerminateProcess(hProcess, 0)
-    End Sub
 ```
 ![image](https://github.com/laomms/InterProcessSocket/blob/master/22.png)   
 
