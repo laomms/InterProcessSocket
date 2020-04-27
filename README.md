@@ -100,7 +100,7 @@ AgrListStruct CallExe(AgrListStruct funcstruct)
 {   
 
     MODULEINFO modinfo = { 0 };
-    HMODULE hModule = GetModuleHandle(NULL);// GetModuleHandle(L"gatherosstate64.exe");
+    HMODULE hModule = GetModuleHandle(NULL);
     if (hModule == 0)
         return funcstruct;
     if (funcstruct.FuncFlag == 2)
